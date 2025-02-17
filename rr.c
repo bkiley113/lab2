@@ -208,6 +208,9 @@ int main(int argc, char *argv[])
   //introduce this metric to step throught the execution time of each process
   u32 run_for = 0;
 
+  //turnaround time for each process, used in final calculations
+  u32 turnaround_time = 0;
+
 
   while (completed < size) {
     //first, we will add to the queue jobs that are scheduled at or before current time
@@ -280,9 +283,9 @@ int main(int argc, char *argv[])
     }
   }
 
+  //now we add the turnaround time of each process up and then we get the total waiting time!
   for (u32 i = 0; i < size; i++) {
-      u32 turnaround_time = data[i].completion_time - data[i].arrival_time;
-      //u32 waiting_time = turnaround_time - data[i].burst_time;
+      turnaround_time = data[i].completion_time - data[i].arrival_time;
       total_waiting_time += turnaround_time - data[i].burst_time;
   }
 
