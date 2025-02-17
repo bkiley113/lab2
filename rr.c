@@ -18,9 +18,16 @@ struct process
   u32 arrival_time;
   u32 burst_time;
 
+
   TAILQ_ENTRY(process) pointers;
 
   /* Additional fields here */
+
+  u32 remaining_time;
+  u32 start_time;
+  u32 last_executed;
+
+  bool has_started;
   /* End of "Additional fields here" */
 };
 
@@ -141,6 +148,16 @@ void init_processes(const char *path,
   close(fd);
 }
 
+void add_to_queue(struct process_list *queue, struct process *next_process){
+  struct process *current_process;
+  TAILQ_FOREACH(current_process, queue, pointers){
+    if(next_process->arrival_time < current_process-> arrival_time){
+      TAILQ_INSERT_BEFORE(current_process, next_process, pointers);
+    }
+  }
+  TAILQ_INSERT_TAIL(queue, next_process, pointers);
+}
+
 int main(int argc, char *argv[])
 {
   if (argc != 3)
@@ -159,8 +176,47 @@ int main(int argc, char *argv[])
   u32 total_waiting_time = 0;
   u32 total_response_time = 0;
 
+  u32 time_slice = 0;
+
   /* Your code here */
-  
+
+  u32 current_time = 0;
+  //populate the ready queue
+  for(u32 i = 0; i < size; i++){
+    data[i].remaining_time = data[i].burst_time;
+    data[i].has_started = false;
+    add_to_queue(&list, &data[i]);
+  }
+
+  struct process *curr_proc;
+
+  while(!TAILQ_EMPTY(&list)){
+    curr_proc = TAILQ_FIRST(&list);
+    TAILQ_REMOVE(&list, curr_proc, pointers);
+
+    if(curr_proc->arrival_time > current_time){
+      current_time = curr_proc->arrival_time;
+    }
+
+    if(!curr_proc->has_started){
+      curr_proc->has_started = true;
+      total_response_time += current_time;
+      curr_proc->start_time = current_time;
+
+    }
+    if(curr_proc -> remaining_time > quantum_length){
+      time_slice = curr_proc->remaining_time;
+    } else{
+      time_slice = quantum_length;
+    }
+    curr_proc = curr_proc - time_slice;
+
+    if(curr_proc->remaining_time > 0){
+      TAILQ_INSERT_TAIL(&list, curr_proc, pointers);
+    } else{
+      total_waiting_time = total_waiting_time + current_time - curr_proc->arrival_time - curr_proc->burst_time;
+    }
+  }
   /* End of "Your code here" */
 
   printf("Average waiting time: %.2f\n", (float)total_waiting_time / (float)size);
