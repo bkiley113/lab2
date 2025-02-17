@@ -148,15 +148,15 @@ void init_processes(const char *path,
   close(fd);
 }
 
-void add_to_queue(struct process_list *queue, struct process *next_process){
-  struct process *current_process;
-  TAILQ_FOREACH(current_process, queue, pointers){
-    if(next_process->arrival_time < current_process-> arrival_time){
-      TAILQ_INSERT_BEFORE(current_process, next_process, pointers);
-    }
-  }
-  TAILQ_INSERT_TAIL(queue, next_process, pointers);
-}
+// void add_to_queue(struct process_list *queue, struct process *next_process){
+//   struct process *current_process;
+//   TAILQ_FOREACH(current_process, queue, pointers){
+//     if(next_process->arrival_time < current_process-> arrival_time){
+//       TAILQ_INSERT_BEFORE(current_process, next_process, pointers);
+//     }
+//   }
+//   TAILQ_INSERT_TAIL(queue, next_process, pointers);
+// }
 
 int main(int argc, char *argv[])
 {
