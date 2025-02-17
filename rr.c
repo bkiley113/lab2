@@ -204,12 +204,13 @@ int main(int argc, char *argv[])
       curr_proc->start_time = current_time;
 
     }
-    if(curr_proc -> remaining_time > quantum_length){
-      time_slice = curr_proc->remaining_time;
-    } else{
+    if(curr_proc->remaining_time > quantum_length){
       time_slice = quantum_length;
+    } else{
+      time_slice = curr_proc->remaining_time;
     }
-    curr_proc = curr_proc - time_slice;
+    curr_proc->remaining_time = curr_proc->remaining_time - time_slice;
+    current_time += time_slice;
 
     if(curr_proc->remaining_time > 0){
       TAILQ_INSERT_TAIL(&list, curr_proc, pointers);
