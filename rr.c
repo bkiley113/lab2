@@ -175,12 +175,18 @@ int main(int argc, char *argv[]) {
         current_time += time_slice;
 
         // If process is not finished, reinsert it at the tail.
-        if (curr_proc->remaining_time > 0) {
-            TAILQ_INSERT_TAIL(&ready_queue, curr_proc, pointers);
-        } else {
-            // Process finished; compute waiting time.
-            total_waiting_time += (current_time - curr_proc->arrival_time - curr_proc->burst_time);
+        // if (curr_proc->remaining_time > 0) {
+        //     TAILQ_INSERT_TAIL(&ready_queue, curr_proc, pointers);
+        // } else {
+        //     // Process finished; compute waiting time.
+        //     total_waiting_time += (current_time - curr_proc->arrival_time - curr_proc->burst_time);
+        // }
+
+        if (curr_proc->remaining_time > 0){
+          TAILQ_INSERT_TAIL(&ready_queue, curr_proc, pointers);
+          total_waiting_time += (current_time -curr_proc->last_executed);
         }
+        curr_proc->last_executed = current_time;
     }
 
     printf("Average waiting time: %.2f\n", (float)total_waiting_time / (float)size);
