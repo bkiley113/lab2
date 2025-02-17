@@ -22,8 +22,8 @@ struct process {
     /* Additional fields here */
 
     u32 remaining_time;
-    u32 start_time;       // when it first gets CPU
-    u32 completion_time;  // when it finishes
+    u32 start_time;
+    u32 completion_time;
     bool has_started;
     u32 last_executed;
 
@@ -149,7 +149,7 @@ void init_processes(const char *path,
 
 //I use quicksort from stdlib.h, hence we need a comparison function to make it work
 //this one will compare by arrival time
-static int compare_by_arrival_time(const void *a, const void *b) 
+static int compare_arrival_time(const void *a, const void *b) 
 {
   const struct process *proc1 = (const struct process *)a;
   const struct process *proc2 = (const struct process *)b;
@@ -182,7 +182,7 @@ int main(int argc, char *argv[])
   /* Your code here*/
 
   //first, ensure that processes are sorted by arrival time using quicksort
-  qsort(data, size, sizeof(struct process), compare_by_arrival_time);
+  qsort(data, size, sizeof(struct process), compare_arrival_time);
 
   //here are the initial additional values for each process in 'data'
   for (u32 i = 0; i < size; i++) {
@@ -193,76 +193,97 @@ int main(int argc, char *argv[])
       data[i].last_executed = 0;
   }
 
-  // We'll track how many processes have completed
+  //track if we have processes every job or not
   u32 completed = 0;
+
+  //gives us a relative marker to define milestones for each process
   u32 current_time = 0;
+
+  //we will use this to step through each process in 'data'
   u32 next_arrival_index = 0;
 
-  // For final averages
-  // We will compute waiting_time = completion_time - arrival_time - burst_time
-  // response_time = start_time - arrival_time (when it first starts)
+  //time slice for the 'execution' part
+  u32 time_slice = 0;
+
+  //introduce this metric to step throught the execution time of each process
+  u32 run_for = 0;
 
 
-  // Keep running until all processes complete
   while (completed < size) {
-      while ((next_arrival_index < size) && (data[next_arrival_index].arrival_time <= current_time)) {
-          TAILQ_INSERT_TAIL(&list, &data[next_arrival_index], pointers);
-          next_arrival_index++;
-      }
+    //first, we will add to the queue jobs that are scheduled at or before current time
+    while ((next_arrival_index < size) && (data[next_arrival_index].arrival_time <= current_time)) {
 
-      if (TAILQ_EMPTY(&list)){
-          if (next_arrival_index < size) {
-              current_time = data[next_arrival_index].arrival_time;
-          } else {
-              break;
-          }
-          continue;
-      }
+      //insert them at the end
+        TAILQ_INSERT_TAIL(&list, &data[next_arrival_index], pointers);
+        next_arrival_index++;
+    }
 
-      struct process *curr_proc = TAILQ_FIRST(&list);
-      TAILQ_REMOVE(&list, curr_proc, pointers);
+    //if the queue is empty, then we will jump to the next scheduled job
+    if (TAILQ_EMPTY(&list)){
+        //if there is an incoming job, jump to it
+        if (next_arrival_index < size) {
+            current_time = data[next_arrival_index].arrival_time;
+        } else {
+            //if not, we are done scheduling and we bail out of the loop
+            break;
+        }
+        //now we move on to the next loop iteration to pick up those processes we jumped to
+        continue;
+    }
 
-      if (!curr_proc->has_started){
-          curr_proc->has_started = true;
-          curr_proc->start_time = current_time;
-          total_response_time += (curr_proc->start_time - curr_proc->arrival_time);
-      }
+    //once we have done some populating, we begin to 'execute' processes off the list
+    //start by popping off the top of the queue!
+    struct process *curr_proc = TAILQ_FIRST(&list);
+    TAILQ_REMOVE(&list, curr_proc, pointers);
 
-      u32 time_slice = quantum_length;
-      if (curr_proc->remaining_time < time_slice) {
-          time_slice = curr_proc->remaining_time;
-      }
+    //if the current process has not been started yet, this is where we get out response time metric
+    //so we update that accordingly, and set its start time as well
+    if (!curr_proc->has_started){
+        curr_proc->has_started = true;
+        curr_proc->start_time = current_time;
+        total_response_time += (curr_proc->start_time - curr_proc->arrival_time);
+    }
 
-      u32 run_for = 0;
-      while (run_for < time_slice) {
-          curr_proc->remaining_time--;
-          current_time++;
-          run_for++;
+    //now we determine its time slice by the remaining time in the job it has less
+    //we do this to differentiate between taking a whole quantum or only part of one
+    time_slice = quantum_length;
+    if (curr_proc->remaining_time < time_slice) {
+        time_slice = curr_proc->remaining_time;
+    }
 
-          while (next_arrival_index < size &&
-                  data[next_arrival_index].arrival_time <= current_time) {
-              TAILQ_INSERT_TAIL(&list, &data[next_arrival_index], pointers);
-              next_arrival_index++;
-          }
+    //here, we implement a loop that will simulate the running of a process for its time slice
+    //if our run_for counter reaches time slice, we continue on through the loop
+    //if it doesn't, we get to record that the process finished
+    run_for = 0;
+    //we do this in a one-at-a-time-unit fashion
+    while (run_for < time_slice) {
+        curr_proc->remaining_time--;
+        current_time++;
+        run_for++;
 
-          if (curr_proc->remaining_time == 0) {
-              curr_proc->completion_time = current_time;
-              completed++;
-              break;
-          }
-      }
-
-      // If not finished, re-insert it into the queue
-      if (curr_proc->remaining_time > 0) {
-          TAILQ_INSERT_TAIL(&list, curr_proc, pointers);
-      }
+        //here, we consider other processes that may be set to arrive because we are still incrementing time and they need attention
+        while ((next_arrival_index < size) && (data[next_arrival_index].arrival_time <= current_time)) {
+            //put them at the back of the queue as usual
+            TAILQ_INSERT_TAIL(&list, &data[next_arrival_index], pointers);
+            next_arrival_index++;
+        }
+        //if we finish a process...
+        if (curr_proc->remaining_time == 0) {
+            curr_proc->completion_time = current_time;  //we record its completion time
+            completed++;   //as well as the number of completions
+            break;        //and jump out of our execution loop! onto the next
+        }
+    }
+    //this is if we didn't finish running the process, so we add it back and rinse/repeat
+    if (curr_proc->remaining_time > 0) {
+        TAILQ_INSERT_TAIL(&list, curr_proc, pointers);
+    }
   }
 
-  // Now compute waiting times from completion times
   for (u32 i = 0; i < size; i++) {
       u32 turnaround_time = data[i].completion_time - data[i].arrival_time;
-      u32 waiting_time = turnaround_time - data[i].burst_time;
-      total_waiting_time += waiting_time;
+      //u32 waiting_time = turnaround_time - data[i].burst_time;
+      total_waiting_time += turnaround_time - data[i].burst_time;
   }
 
 
