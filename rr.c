@@ -176,47 +176,63 @@ int main(int argc, char *argv[])
   u32 total_waiting_time = 0;
   u32 total_response_time = 0;
 
-  u32 time_slice = 0;
-
   /* Your code here */
-
   u32 current_time = 0;
+  u32 time_slice = 0;
+  u32 next_index = 0;
+
   //populate the ready queue
   for(u32 i = 0; i < size; i++){
     data[i].remaining_time = data[i].burst_time;
     data[i].has_started = false;
-    add_to_queue(&list, &data[i]);
   }
 
-  struct process *curr_proc;
+  while(next_index < size || !TAILQ_EMPTY(&list)){
+    //add whatever processes to the queue that have arrived by current_time
+    while((next_index < size) && (data[next_index].arrival_time <= current_time)){
+      TAILQ_INSERT_TAIL(&list, &data[next_index], pointers);
+      next_index++;
+    }
+    //if none have arrive yet, go to the next available process
+    if(TAILQ_EMPTY(&list)){
+      current_time = data[next_index].arrival_time;
+      TAILQ_INSERT_TAIL(&list, &data[next_index], pointers);
+      next_index++;
+    }
 
-  while(!TAILQ_EMPTY(&list)){
-    curr_proc = TAILQ_FIRST(&list);
+    //now we move into the actual exectution part, picking the first job off the queue
+    struct process *curr_proc = TAILQ_FIRST(&list);
     TAILQ_REMOVE(&list, curr_proc, pointers);
 
-    if(curr_proc->arrival_time > current_time){
-      current_time = curr_proc->arrival_time;
-    }
-
+    //if the process has not yet started, we record its response time
     if(!curr_proc->has_started){
-      curr_proc->has_started = true;
-      total_response_time += current_time;
+      curr_proc->has_started=true;
+      total_response_time += current_time - curr_proc->arrival_time;
       curr_proc->start_time = current_time;
-
     }
+    //now we determine the time slice of the process
     if(curr_proc->remaining_time > quantum_length){
       time_slice = quantum_length;
     } else{
       time_slice = curr_proc->remaining_time;
     }
-    curr_proc->remaining_time = curr_proc->remaining_time - time_slice;
+
+    curr_proc->remaining_time -= quantum_length;
     current_time += time_slice;
 
-    if(curr_proc->remaining_time > 0){
+    //add any new processes from the new current time
+    while ((next_index < size) && (data[next_index].arrival_time <= current_time)){
+      TAILQ_INSERT_TAIL(&list, &data[next_index], pointers);
+      next_index++;
+    }
+
+    //now we go about reorganizing the queue:
+    if (curr_proc->remaining_time > 0){
       TAILQ_INSERT_TAIL(&list, curr_proc, pointers);
     } else{
-      total_waiting_time = total_waiting_time + current_time - curr_proc->arrival_time - curr_proc->burst_time;
+      total_waiting_time += current_time - curr_proc->arrival_time - curr_proc->burst_time;
     }
+
   }
   /* End of "Your code here" */
 
